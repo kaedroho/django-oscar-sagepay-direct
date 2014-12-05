@@ -48,6 +48,65 @@ def _get_country_code(country):
     return country_code
 
 
+def payment(amount, currency, bankcard, shipping_address, billing_address,
+                 description=None, order_number=None):
+    """
+    Perform a PAYMENT request and return the TX ID if successful.
+    """
+    # Requests require a non-empty description
+    if description is None:
+        description = "<no description>"
+
+    # Decompose Oscar objects into a dict of data to pass to gateway
+    params = {
+        'amount': amount,
+        'currency': currency,
+        'description': description,
+    }
+
+    params.update(_get_bankcard_params(bankcard))
+
+    if order_number is not None:
+        params['reference'] = order_number
+    if shipping_address:
+        params.update({
+            'delivery_surname': shipping_address.last_name,
+            'delivery_first_names': shipping_address.first_name,
+            'delivery_address1': shipping_address.line1,
+            'delivery_address2': shipping_address.line2,
+            'delivery_city': shipping_address.line4,
+            'delivery_postcode': shipping_address.postcode,
+            'delivery_country': _get_country_code(shipping_address.country),
+            'delivery_state': shipping_address.state,
+            'delivery_phone': shipping_address.phone_number,
+        })
+    if billing_address:
+        params.update({
+            'billing_surname': billing_address.last_name,
+            'billing_first_names': billing_address.first_name,
+            'billing_address1': billing_address.line1,
+            'billing_address2': billing_address.line2,
+            'billing_city': billing_address.line4,
+            'billing_postcode': billing_address.postcode,
+            'billing_country': _get_country_code(billing_address.country),
+            'billing_state': billing_address.state,
+        })
+
+    try:
+        response = gateway.payment(**params)
+    except exceptions.GatewayError as e:
+        # Translate Sagepay gateway exceptions into Oscar checkout ones
+        raise oscar_exceptions.PaymentError(e.message)
+
+    # Check if the transaction was successful (need to distinguish between
+    # customer errors and system errors).
+    if not response.is_successful:
+        raise oscar_exceptions.PaymentError(
+            response.status_detail)
+
+    return response.tx_id
+
+
 def authenticate(amount, currency, bankcard, shipping_address, billing_address,
                  description=None, order_number=None):
     """

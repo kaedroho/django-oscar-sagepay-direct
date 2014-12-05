@@ -135,6 +135,71 @@ def clean_phone(input):
     return re.sub(invalid, '', input)
 
 
+def payment(amount, currency, reference='', **kwargs):
+    """
+    Process payment
+
+    Successful requests will get a status of REGISTERED
+    """
+    # Ensure no None values in kwargs
+    for k, v in kwargs.items():
+        if v is None:
+            kwargs[k] = ''
+
+    bankcard_number = kwargs.get('bankcard_number', '')
+    params = {
+        # TXN DETAILS
+        'Amount': str(amount),
+        'Currency': currency,
+        'Description': kwargs.get('description', ''),
+        # BANKCARD DETAILS
+        'CardType': _card_type(bankcard_number),
+        'CardNumber': bankcard_number,
+        'CV2': kwargs.get('bankcard_ccv', ''),
+        # Required field, that is not documented, if not set it the request
+        # returns the error: '5017 : The Security Code(CV2) is required.'
+        'ApplyAVSCV2': kwargs.get('avscv2', '2'),
+        'CardHolder': kwargs.get('bankcard_name', ''),
+        'ExpiryDate': kwargs.get('bankcard_expiry', ''),
+        # BILLING DETAILS
+        'BillingSurname': clean_name(kwargs.get('billing_surname', ''))[:20],
+        'BillingFirstnames': clean_name(kwargs.get('billing_first_names', ''))[:20],
+        'BillingAddress1': clean_address(kwargs.get('billing_address1', ''))[:100],
+        'BillingAddress2': clean_address(kwargs.get('billing_address2', ''))[:100],
+        'BillingCity': clean_address(kwargs.get('billing_city', ''))[:40],
+        'BillingPostCode': clean_postcode(kwargs.get('billing_postcode', ''))[:10],
+        'BillingCountry': kwargs.get('billing_country', '')[:2],
+        'BillingState': kwargs.get('billing_state', '')[:2],
+        'BillingPhone': clean_phone(kwargs.get('billing_phone', ''))[:20],
+        # DELIVERY DETAILS
+        'DeliverySurname': clean_name(kwargs.get('delivery_surname', ''))[:20],
+        'DeliveryFirstnames': clean_name(kwargs.get(
+            'delivery_first_names', ''))[:20],
+        'DeliveryAddress1': clean_address(kwargs.get('delivery_address1', ''))[:100],
+        'DeliveryAddress2': clean_address(kwargs.get('delivery_address2', ''))[:100],
+        'DeliveryCity': clean_address(kwargs.get('delivery_city', ''))[:40],
+        'DeliveryPostCode': clean_postcode(kwargs.get('delivery_postcode', ''))[:10],
+        'DeliveryCountry': kwargs.get('delivery_country', '')[:2],
+        'DeliveryState': kwargs.get('delivery_state', '')[:2],
+        'DeliveryPhone': clean_phone(kwargs.get('delivery_phone', ''))[:20],
+        # TOKENS
+        'CreateToken': kwargs.get('create_token', 0),
+        'StoreToken': kwargs.get('create_token', 0),
+        # Misc
+        'CustomerEMail': kwargs.get('customer_email', ''),
+        'Basket': kwargs.get('basket_html', ''),
+    }
+
+    # Only submit state information for US
+    if params['BillingCountry'].upper() != 'US':
+        params['BillingState'] = ''
+    if params['DeliveryCountry'].upper() != 'US':
+        params['DeliveryState'] = ''
+
+    return _request(config.VPS_REGISTER_URL, TXTYPE_PAYMENT, params,
+                    reference)
+
+
 def authenticate(amount, currency, reference='', **kwargs):
     """
     First part of 2-stage payment processing.
